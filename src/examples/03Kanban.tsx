@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { DndContext, closestCorners, useSensor, useSensors, useDroppable, PointerSensor, KeyboardSensor, DragEndEvent, DragStartEvent, DragOverEvent, DragCancelEvent, DragOverlay, UniqueIdentifier } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Item {
   id: string
@@ -11,8 +14,77 @@ interface Container {
   items: Item[]
 }
 
-export default function MultipleContainers() {
-  const [containers, setContainers] = useState<Container[]>([
+function SortableItem({id, content}:{
+  id: UniqueIdentifier;
+  content: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+
+  const style = {
+    // transform: transform ? `translate3d(${transform?.x}px, ${transform?.y}px, 0)`: undefined,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    // opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      // className="rounded-md border bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
+      {...attributes}
+      {...listeners}
+      className={`cursor-grab touch-none rounded-md borderbg-white p-3 active:cursor-grabbing dark:border-gray-700 dark:bg-gray-700 ${isDragging ? 'z-10 opacity-50 shoadow-md' : ''}`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-gray-500 dark:text-gray-400">⋮⋮</span>
+        <span className="dark:text-gray-200">{content}</span>
+      </div>
+    </li>
+  );
+}
+
+function DroppableContainer({id, title, items}: {id:string, title: string, items: Item[]}) {
+  const { setNodeRef } = useDroppable({ id })
+
+  return (
+    <div
+    ref={setNodeRef}
+    className="flex h-full min-h-40 flex-col rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+  >
+    <h3 className="mb-2 font-medium text-gray-700 dark:text-gray-200">
+      {title}
+    </h3>
+    <div className="flex-1">
+      <SortableContext
+        items={items.map((item) => item.id)}
+        strategy={verticalListSortingStrategy}
+      >
+      <ul className="flex flex-col gap-2">
+        {items.map((item) => (
+          <SortableItem key={item.id} id={item.id} content={item.content} />
+        ))}
+      </ul>
+      </SortableContext>
+      {items.length === 0 && (
+        <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800/30">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Drop items here
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+
+  )
+}
+
+
+  export default function Kanban() {  // rename MultipleContainers?
+
+    const [containers, setContainers] = useState<Container[]>([
     {
       id: 'todo',
       title: 'To Do',
@@ -35,47 +107,137 @@ export default function MultipleContainers() {
   ])
   void setContainers
 
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  void activeId
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: 100,  //Smal delay helps distinguish click from drag on mobile
+        tolerance: 5, // Minimum distance in pixels to activate dragging
+        distance: 8,  // Minimum distance in pixels to activate dragging
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  function findContainerId(
+    itemId: UniqueIdentifier
+  ): UniqueIdentifier | undefined {
+    return containers.find(container => container.items.some(item => item.id === itemId))?.id;
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    const { active } = event;
+    setActiveId(active.id);
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = active.id;
+    const overId = over.id;
+    const activeContainerId = findContainerId(activeId);
+    const overContainerId = findContainerId(overId);
+    if (!activeContainerId || !overContainerId) return
+    if (activeContainerId === overContainerId && activeId !== overId) {
+      // handled with DragEnd
+      return
+    }
+
+    if (activeContainerId === overContainerId) return
+    setContainers((prev) => {
+      const activeContainer = prev.find((c) => c.id === activeContainerId)
+      if (!activeContainer) return prev;
+
+      const activeItem = activeContainer.items.find((item) => item.id === activeId)
+      if (!activeItem) return prev
+
+      const newContainers = prev.map((container) => {
+        if (container.id === activeContainerId) {
+          return {
+            ...container,
+            items: container.items.filter((item) => item.id !== activeId),
+          }
+        }
+        if (container.id === overContainerId) {
+          if (overId === overContainerId) {
+            return {
+              ...container,
+              items: [...container.items, activeItem],
+            }
+          }
+        }
+        const overItemIndex = container.items.findIndex((item) => item.id === overId)
+        if (overItemIndex !== -1) {
+          // const newItems = [...container.items]
+          // newItems.splice(overItemIndex, 0, activeItem)
+          // return {
+          //   ...container,
+          //   items: newItems,
+          // }
+          return {
+            ...container,
+            items: [
+              ...container.items.slice(0, overItemIndex+1),
+              activeItem,
+              ...container.items.slice(overItemIndex+1),
+            ],
+          }
+        }
+        return container
+      })
+
+      return newContainers
+    })
+  }
+
+  function handleDragCancel(event: DragCancelEvent) {
+    void event
+    setActiveId(null);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    void event
+    setActiveId(null);
+
+    // if (!over) {
+    //   // setActiveId(null);
+    //   return;
+    // }
+
+    // if (active.id !== over.id) {
+    //   const oldIndex = items.findIndex(item => item.id === active.id);
+    //   const newIndex = items.findIndex(item => item.id === over.id);
+
+    //   const updatedItems = Array.from(items);
+    //   updatedItems.splice(oldIndex, 1);
+    //   updatedItems.splice(newIndex, 0, items[oldIndex]);
+
+    //   setItems(updatedItems);
+    // }
+  }
+
   return (
     <div className="mx-auto w-full">
       <h2 className="mb-4 text-xl font-bold dark:text-white">Kanban Board</h2>
 
+      <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      >
       <div className="grid gap-4 md:grid-cols-3">
         {containers.map((container) => (
-          <div
-            key={container.id}
-            className="flex h-full min-h-40 flex-col rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
-          >
-            <h3 className="mb-2 font-medium text-gray-700 dark:text-gray-200">
-              {container.title}
-            </h3>
-            <div className="flex-1">
-              <ul className="flex flex-col gap-2">
-                {container.items.map((item) => (
-                  <li
-                    key={item.id}
-                    className="rounded border bg-white p-3 dark:border-gray-700 dark:bg-gray-700"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-500 dark:text-gray-400">
-                        ⋮
-                      </span>
-                      <span className="dark:text-gray-200">{item.content}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {container.items.length === 0 && (
-                <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800/30">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Drop items here
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
+          <DroppableContainer key={container.id} id={container.id} title={container.title} items={container.items} />
         ))}
       </div>
+      </DndContext>
     </div>
   )
 }
