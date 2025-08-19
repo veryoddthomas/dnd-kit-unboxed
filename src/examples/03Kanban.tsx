@@ -123,9 +123,8 @@ export default function Kanban() {  // rename MultipleContainers?
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 50,  //Smal delay helps distinguish click from drag on mobile
-        tolerance: 5, // Minimum distance in pixels to activate dragging
-        distance: 8,  // Minimum distance in pixels to activate dragging
+        delay: 50,  // Small delay helps distinguish click from drag on mobile
+        tolerance: 5,  // Minimum distance in pixels to activate dragging
       },
     }),
     useSensor(KeyboardSensor, {
@@ -285,7 +284,8 @@ export default function Kanban() {  // rename MultipleContainers?
           <DroppableContainer key={container.id} id={container.id} title={container.title} items={container.items} />
         ))}
       </div>
-      <DragOverlay>
+      <DragOverlay
+      dropAnimation={({duration:150, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)'})}>
         {activeId ? (
           <ItemOverlay>
             {getActiveItem()?.content}
