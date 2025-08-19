@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { DndContext, closestCorners, useSensor, useSensors, useDroppable, PointerSensor, KeyboardSensor, DragEndEvent, DragStartEvent, DragOverEvent, DragCancelEvent, DragOverlay, UniqueIdentifier } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates} from '@dnd-kit/sortable';
+import { DndContext, CollisionDetection, pointerWithin, closestCorners, useSensor, useSensors, useDroppable, PointerSensor, KeyboardSensor, DragEndEvent, DragStartEvent, DragOverEvent, DragCancelEvent, DragOverlay, UniqueIdentifier } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 interface Item {
@@ -81,29 +81,39 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
   )
 }
 
+function ItemOverlay({ children}: { children?: React.ReactNode }) {
+  return (
+    <div className="curosr-grabbing touch-none rounded-md border bg-white p-3 shadow-md dark:border-gray-700 dark:bg-gray-700">
+      <div className="flex items-center gap-3">
+        <span className="text-gray-500 dark:text-gray-400">⋮⋮</span>
+        <span className="dark:text-gray-200">{children || 'Dragging...'}</span>
+      </div>
+    </div>
+  )
+}
 
-  export default function Kanban() {  // rename MultipleContainers?
+export default function Kanban() {  // rename MultipleContainers?
 
-    const [containers, setContainers] = useState<Container[]>([
-    {
-      id: 'todo',
-      title: 'To Do',
-      items: [
-        { id: 'task-1', content: 'Research @dnd-kit' },
-        { id: 'task-2', content: 'Create basic example' },
-        { id: 'task-3', content: 'Write tutorial' },
-      ],
-    },
-    {
-      id: 'in-progress',
-      title: 'In Progress',
-      items: [{ id: 'task-4', content: 'Record demo video' }],
-    },
-    {
-      id: 'done',
-      title: 'Done',
-      items: [{ id: 'task-5', content: 'Setup project' }],
-    },
+  const [containers, setContainers] = useState<Container[]>([
+  {
+    id: 'todo',
+    title: 'To Do',
+    items: [
+      { id: 'task-1', content: 'Research @dnd-kit' },
+      { id: 'task-2', content: 'Create basic example' },
+      { id: 'task-3', content: 'Write tutorial' },
+    ],
+  },
+  {
+    id: 'in-progress',
+    title: 'In Progress',
+    items: [{ id: 'task-4', content: 'Record demo video' }],
+  },
+  {
+    id: 'done',
+    title: 'Done',
+    items: [{ id: 'task-5', content: 'Setup project' }],
+  },
   ])
   void setContainers
 
@@ -113,7 +123,7 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 100,  //Smal delay helps distinguish click from drag on mobile
+        delay: 50,  //Smal delay helps distinguish click from drag on mobile
         tolerance: 5, // Minimum distance in pixels to activate dragging
         distance: 8,  // Minimum distance in pixels to activate dragging
       },
@@ -140,7 +150,22 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
     const activeId = active.id;
     const overId = over.id;
     const activeContainerId = findContainerId(activeId);
-    const overContainerId = findContainerId(overId);
+    var overContainerId = findContainerId(overId);
+
+    console.log('DragOver:', {
+      activeId,
+      overId,
+      activeContainerId,
+      overContainerId,
+    });
+
+
+    /* WTF!!! */
+    if (typeof overContainerId === 'undefined' && overId) {
+      overContainerId = overId; // If over is not a container, use its ID
+    }
+
+
     if (!activeContainerId || !overContainerId) return
     if (activeContainerId === overContainerId && activeId !== overId) {
       // handled with DragEnd
@@ -172,12 +197,6 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
         }
         const overItemIndex = container.items.findIndex((item) => item.id === overId)
         if (overItemIndex !== -1) {
-          // const newItems = [...container.items]
-          // newItems.splice(overItemIndex, 0, activeItem)
-          // return {
-          //   ...container,
-          //   items: newItems,
-          // }
           return {
             ...container,
             items: [
@@ -200,24 +219,53 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    void event
+    const { active, over } = event;
+    if (!over) {
+      // If the item was dropped outside any container, reset activeId
+      setActiveId(null);
+      return;
+    }
+    const activeId = active.id;
+    const overId = over.id;
+    const activeContainerId = findContainerId(activeId);
+    const overContainerId = findContainerId(overId);
+    if (!activeContainerId || !overContainerId) {
+      setActiveId(null);
+      return
+    }
+    if (activeContainerId === overContainerId && activeId !== overId) {
+      const containerIndex = containers.findIndex(c => c.id === activeContainerId);
+      if (containerIndex === -1) {
+        setActiveId(null);
+        return;
+      }
+      const container = containers[containerIndex];
+      const activeIndex = container.items.findIndex(item => item.id === activeId);
+      const overIndex = container.items.findIndex(item => item.id === overId);
+      if (activeIndex !== -1 && overIndex !== -1) {
+        const newItems = arrayMove(container.items, activeIndex, overIndex);
+        setContainers((containers) => {
+          return containers.map((c, i) => {
+            if (i === containerIndex) {
+              return {
+                ...c,
+                items: newItems,
+              }
+            }
+            return c;
+          })
+        })
+      }
+    }
     setActiveId(null);
+  }
 
-    // if (!over) {
-    //   // setActiveId(null);
-    //   return;
-    // }
-
-    // if (active.id !== over.id) {
-    //   const oldIndex = items.findIndex(item => item.id === active.id);
-    //   const newIndex = items.findIndex(item => item.id === over.id);
-
-    //   const updatedItems = Array.from(items);
-    //   updatedItems.splice(oldIndex, 1);
-    //   updatedItems.splice(newIndex, 0, items[oldIndex]);
-
-    //   setItems(updatedItems);
-    // }
+  const getActiveItem = () => {
+    for (const container of containers) {
+      const item = container.items.find(i => i.id === activeId);
+      if (item) return item;
+    }
+    return null
   }
 
   return (
@@ -237,6 +285,13 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
           <DroppableContainer key={container.id} id={container.id} title={container.title} items={container.items} />
         ))}
       </div>
+      <DragOverlay>
+        {activeId ? (
+          <ItemOverlay>
+            {getActiveItem()?.content}
+          </ItemOverlay>
+        ) : null}
+      </DragOverlay>
       </DndContext>
     </div>
   )
