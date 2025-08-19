@@ -52,11 +52,14 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
   return (
     <div
     ref={setNodeRef}
-    className="flex h-full min-h-40 flex-col rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+    className="h-full min-h-40 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
   >
-    <h3 className="mb-2 font-medium text-gray-700 dark:text-gray-200">
+    <div className="flex items-center justify-between mb-3">
+      <h3 className="mb-2 font-medium text-gray-700 dark:text-gray-200">
       {title}
-    </h3>
+      </h3>
+    <span className="text-xs text-gray-500">{items.length}</span>
+    </div>
     <div className="flex-1">
       <SortableContext
         items={items.map((item) => item.id)}
