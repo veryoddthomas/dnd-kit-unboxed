@@ -86,7 +86,7 @@ function DroppableContainer({id, title, items}: {id:string, title: string, items
 
 function ItemOverlay({ children}: { children?: React.ReactNode }) {
   return (
-    <div className="curosr-grabbing touch-none rounded-md border bg-white p-3 shadow-md dark:border-gray-700 dark:bg-gray-700">
+    <div className="cursor-grabbing touch-none rounded-md border bg-white p-3 shadow-md dark:border-gray-700 dark:bg-gray-700">
       <div className="flex items-center gap-3">
         <span className="text-gray-500 dark:text-gray-400">⋮⋮</span>
         <span className="dark:text-gray-200">{children || 'Dragging...'}</span>
