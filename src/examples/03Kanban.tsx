@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DndContext, CollisionDetection, pointerWithin, closestCorners, useSensor, useSensors, useDroppable, PointerSensor, KeyboardSensor, DragEndEvent, DragStartEvent, DragOverEvent, DragCancelEvent, DragOverlay, UniqueIdentifier } from '@dnd-kit/core';
+import { DndContext, closestCorners, useSensor, useSensors, useDroppable, PointerSensor, KeyboardSensor, DragEndEvent, DragStartEvent, DragOverEvent, DragCancelEvent, DragOverlay, UniqueIdentifier } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -152,7 +152,7 @@ export default function Kanban() {  // rename MultipleContainers?
     const activeId = active.id;
     const overId = over.id;
     const activeContainerId = findContainerId(activeId);
-    var overContainerId = findContainerId(overId);
+    let overContainerId = findContainerId(overId);
 
     console.log('DragOver:', {
       activeId,
@@ -182,7 +182,7 @@ export default function Kanban() {  // rename MultipleContainers?
       const activeItem = activeContainer.items.find((item) => item.id === activeId)
       if (!activeItem) return prev
 
-      const newContainers = prev.map((container) => {
+      return prev.map((container) => {
         if (container.id === activeContainerId) {
           return {
             ...container,
@@ -210,8 +210,6 @@ export default function Kanban() {  // rename MultipleContainers?
         }
         return container
       })
-
-      return newContainers
     })
   }
 
